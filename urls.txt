@@ -1,0 +1,13 @@
+https://example.com/
+https://example.com/about
+https://example.com/contact
+https://example.com/features
+https://example.com/pricing
+https://example.com/blog
+https://example.com/docs
+https://example.com/services
+https://example.com/privacy
+https://example.com/terms
+https://google.com
+https://wikipedia.org
+https://github.com

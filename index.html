@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VitalPulse - Bulk Core Web Vitals Audit Dashboard</title>
+  <meta name="description" content="Audit, track, and export bulk Core Web Vitals data using Google's official PageSpeed Insights API.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Load ExcelJS for spreadsheet generation -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script>
+    if (typeof ExcelJS === 'undefined') {
+      document.write('<script src="/node_modules/exceljs/dist/exceljs.min.js"><\/script>');
+    }
+  </script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Control Panel -->
+    <aside class="sidebar">
+      <div class="logo-container">
+        <div class="logo-icon" id="logoIcon">V</div>
+        <h1 class="logo-text" id="logoText">VitalPulse</h1>
+      </div>
+
+      <!-- Audit Run Name -->
+      <div class="control-group">
+        <label for="runNameInput" class="control-label">Audit Run Name <span style="color: var(--color-poor);">*</span></label>
+        <input type="text" id="runNameInput" class="input-text" placeholder="e.g. Sitemap, Homepage Check" autocomplete="off" required>
+      </div>
+
+      <!-- Audit Mode -->
+      <div class="control-group">
+        <label for="auditDepthSelect" class="control-label">Audit Mode</label>
+        <select id="auditDepthSelect" class="input-select">
+          <option value="full">Deep Audit (Field + Lab + Suggestions)</option>
+          <option value="fast">Quick Audit (Field Data Only — Lightspeed)</option>
+        </select>
+      </div>
+
+      <!-- Strategy Config -->
+      <div class="control-group">
+        <label for="strategySelect" class="control-label">Device Strategy</label>
+        <select id="strategySelect" class="input-select">
+          <option value="both">Both (Mobile & Desktop)</option>
+          <option value="mobile">Mobile Only</option>
+          <option value="desktop">Desktop Only</option>
+        </select>
+      </div>
+
+      <!-- Concurrency Slider -->
+      <div class="control-group">
+        <label for="concurrencySlider" class="control-label" id="concurrencyLabel">Concurrency: 5 Workers</label>
+        <input type="range" id="concurrencySlider" min="1" max="10" value="5" class="input-select" style="padding: 0.5rem 0;">
+      </div>
+
+      <!-- API Key Field -->
+      <div class="control-group">
+        <label for="apiKeyInput" class="control-label">PageSpeed Insights API Key</label>
+        <input type="password" id="apiKeyInput" class="input-text" placeholder="Paste your API key here (Optional)" autocomplete="off">
+      </div>
+
+      <!-- URL Input Area -->
+      <div class="control-group" style="flex: 1; display: flex; flex-direction: column;">
+        <label for="urlsInput" class="control-label">URLs to Audit</label>
+        <textarea id="urlsInput" class="textarea-urls" placeholder="Enter one URL per line&#10;e.g., https://example.com&#10;e.g., https://google.com" style="flex: 1;"></textarea>
+      </div>
+
+      <!-- CSV File Upload -->
+      <div class="control-group">
+        <label class="file-upload-btn" id="fileUploadLabel" for="fileUploadInput">
+          <span>Upload List (TXT/CSV/XML)</span>
+          <input type="file" id="fileUploadInput" accept=".txt,.csv,.xml">
+        </label>
+      </div>
+
+      <!-- Sitemap URL Loader -->
+      <div class="control-group" style="display: none;">
+        <label for="sitemapUrlInput" class="control-label">Or Load from Sitemap URL</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="sitemapUrlInput" class="input-text" placeholder="https://example.com/sitemap.xml" style="flex: 1; margin: 0;">
+          <button id="loadSitemapBtn" class="btn-secondary" style="padding: 0 0.75rem; font-size: 0.85rem; margin: 0; min-height: unset; height: 38px; flex-shrink: 0; white-space: nowrap;">
+            <span>Load</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <button id="startAuditBtn" class="btn-primary">
+        <span>Start Bulk Audit</span>
+      </button>
+      <button id="cancelAuditBtn" class="btn-secondary" disabled>
+        <span>Cancel Audit</span>
+      </button>
+
+      <!-- Sidebar Instructions Footer -->
+      <div class="sidebar-footer">
+        <div class="instructions-card">
+          <strong>Need higher limits?</strong>
+          <p style="margin-top: 0.25rem;">Without an API key, Google will heavily rate limit bulk checks. Get a free API key (25,000 requests/day) from the <a href="https://console.cloud.google.com/apis/library/pagespeedonline.googleapis.com" target="_blank" rel="noopener noreferrer">Google Cloud Console</a>.</p>
+        </div>
+        <div class="theme-toggle">
+          <span id="themeToggleText">Dark UI Mode</span>
+          <label class="switch" id="themeSwitchLabel">
+            <input type="checkbox" id="themeToggleInput" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Panel -->
+    <main class="main-panel">
+      <!-- Top Action Bar -->
+      <header class="top-nav">
+        <h2 id="pageTitle">VitalPulse Audit Dashboard</h2>
+        <div class="top-actions">
+          <button id="exportExcelBtn" class="btn-secondary" disabled>
+            <span>Export to Excel</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Navigation Tabs -->
+      <nav class="dashboard-tabs" id="dashboardTabs">
+        <button class="tab-btn active" id="tabBtnActive" data-tab="active">Current Audit</button>
+        <button class="tab-btn" id="tabBtnHistory" data-tab="history">History Log</button>
+      </nav>
+
+      <!-- Panel: Active Audit -->
+      <div class="tab-panel" id="tabPanelActive">
+        <!-- Executive Dashboard Summary KPI Cards -->
+        <section class="dashboard-grid" id="dashboardSummary">
+        <div class="metric-card primary" id="kpiTotalUrls">
+          <span class="metric-title">Total URLs</span>
+          <div class="metric-value" id="valTotalUrls">0</div>
+          <span class="metric-desc" id="descTotalUrls">Total strategies to audit</span>
+        </div>
+        <div class="metric-card" id="kpiOverallPass">
+          <span class="metric-title">CWV Pass Rate</span>
+          <div class="metric-value" id="valPassRate">0%</div>
+          <span class="metric-desc" id="descPassRate">Passing all 3 Core Web Vitals</span>
+        </div>
+        <div class="metric-card" id="kpiAvgLcp">
+          <span class="metric-title">Average LCP</span>
+          <div class="metric-value" id="valAvgLcp">-</div>
+          <span class="metric-desc" id="descAvgLcp">Largest Contentful Paint</span>
+        </div>
+        <div class="metric-card" id="kpiAvgCls">
+          <span class="metric-title">Average CLS</span>
+          <div class="metric-value" id="valAvgCls">-</div>
+          <span class="metric-desc" id="descAvgCls">Cumulative Layout Shift</span>
+        </div>
+      </section>
+
+      <!-- Audit Progress Panel -->
+      <section class="progress-panel" id="progressPanel" style="display: none;">
+        <div class="progress-header">
+          <span class="progress-title" id="progressTitle">Auditing URLs...</span>
+          <span class="progress-percentage" id="progressPercentage">0%</span>
+        </div>
+        <div class="progress-bar-bg" id="progressBarBg">
+          <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+        <div class="progress-details">
+          <span id="progressCounts">Completed: 0 / 0</span>
+          <span id="progressActiveWorkers">Active Workers: 0</span>
+        </div>
+        <!-- Live Logging Output Console -->
+        <div class="log-console" id="logConsole">
+          <div class="log-entry info">Console initialized. Awaiting URL inputs...</div>
+        </div>
+      </section>
+
+      <!-- Interactive Data Table Card -->
+      <section class="results-section">
+        <div class="section-header">
+          <h3 id="tableTitle" style="font-size: 1.125rem;">Audit Results</h3>
+          <div class="table-search-box" id="searchBoxContainer">
+            <input type="text" id="tableSearchInput" class="table-search-input" placeholder="Search by URL...">
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-responsive">
+            <table id="resultsTable">
+              <thead>
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th id="thUrl">URL</th>
+                  <th id="thStrategy">Device</th>
+                  <th id="thFieldCwv">Field CWV</th>
+                  <th id="thLcp">LCP (Field)</th>
+                  <th id="thInp">INP (Field)</th>
+                  <th id="thCls">CLS (Field)</th>
+                  <th id="thFcp">FCP (Field)</th>
+                  <th id="thLabScore">Lab Performance</th>
+                </tr>
+              </thead>
+              <tbody id="resultsTableBody">
+                <!-- Data will be dynamically loaded here -->
+                <tr id="emptyRow">
+                  <td colspan="9">
+                    <div class="empty-state" id="emptyStateContainer">
+                      <div class="empty-state-icon">📊</div>
+                      <div class="empty-state-title">No Audit Performed Yet</div>
+                      <div class="empty-state-desc">Enter web addresses in the left column and click "Start Bulk Audit" to gather real-world and synthetic web vitals.</div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- Pagination / Info Row -->
+          <div class="table-footer" id="tableFooter">
+            <span id="tablePageInfo">Showing 0 of 0 entries</span>
+            <div class="pagination-controls" id="paginationControls">
+              <button id="prevPageBtn" class="pagination-btn" disabled>Previous</button>
+              <button id="nextPageBtn" class="pagination-btn" disabled>Next</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      </div> <!-- Close Panel: Active Audit -->
+
+      <!-- Panel: History Log -->
+      <div class="tab-panel" id="tabPanelHistory" style="display: none;">
+        <section class="results-section">
+          <div class="section-header">
+            <h3 style="font-size: 1.125rem;">Audit Runs History</h3>
+          </div>
+          <div class="history-list" id="historyList">
+            <div class="empty-state" style="grid-column: 1 / -1;">
+              <div class="empty-state-icon">📁</div>
+              <div class="empty-state-title">No Historical Scans Found</div>
+              <div class="empty-state-desc">All completed runs will automatically appear here as persistent scan history cards.</div>
+            </div>
+          <div class="table-footer" id="historyTableFooter" style="margin-top: 1.5rem; border-radius: 8px;">
+            <span id="historyPageInfo">Showing 0 of 0 entries</span>
+            <div class="pagination-controls" id="historyPaginationControls">
+              <button id="prevHistoryPageBtn" class="pagination-btn" disabled>Previous</button>
+              <button id="nextHistoryPageBtn" class="pagination-btn" disabled>Next</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

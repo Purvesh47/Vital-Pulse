@@ -1,0 +1,15 @@
+{
+  "name": "vitalpulse",
+  "version": "1.0.0",
+  "description": "Bulk check Core Web Vitals and generate a beautifully formatted Excel sheet.",
+  "main": "cli-checker.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "check": "node cli-checker.js"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  },
+  "private": true
+}

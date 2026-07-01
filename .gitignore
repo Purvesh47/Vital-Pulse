@@ -1,0 +1,24 @@
+# Dependency directories
+node_modules/
+
+# Excel audit reports
+*.xlsx
+
+# Temporary Lighthouse CLI report files
+lh-temp-*.json
+
+# Local audit run data (JSON files)
+history/*
+!history/.gitkeep
+
+# Local log files
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
